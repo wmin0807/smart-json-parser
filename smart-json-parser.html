@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Smart JSON Parser</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #10141d; --panel: #191e29; --inset: #141925; --raised: #232b39;
+  --line: #343e50; --faint: #2a3344; --text: #eef2fa; --soft: #bac4d6; --muted: #9ba9c1;
+  --accent: #a1bbff; --accent-ink: #111c36; --accent-soft: #263657;
+  --key: #b4baff; --string: #9bd7f0; --number: #edbf84; --literal: #e1b4f7;
+  --warn: #f4bd83; --error: #ffa6a0; --mark: #5c482a;
+  --mono: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f2f4f9; --panel: #fff; --inset: #f8f9fc; --raised: #edf1f8;
+  --line: #d6ddea; --faint: #e1e6ef; --text: #192235; --soft: #46546c; --muted: #52627b;
+  --accent: #2b53bd; --accent-ink: #fff; --accent-soft: #e5ecff;
+  --key: #4244ad; --string: #15627e; --number: #935011; --literal: #743ab0;
+  --warn: #8f4e13; --error: #a82b28; --mark: #faeab8;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button, select { cursor: pointer; }
+button:disabled { opacity: .43; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+svg { width: 1.05rem; height: 1.05rem; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.wrap { width: min(1440px, calc(100% - 80px)); margin-inline: auto; }
+.top { flex: none; border-bottom: 1px solid var(--faint); background: var(--panel); }
+.top-inner { min-height: 49px; display: flex; align-items: center; gap: 10px; }
+.logo { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); font: 700 17px/1 var(--mono); flex-shrink: 0; }
+h1 { font-size: 1.13rem; line-height: 1.2; margin: 0; font-weight: 730; letter-spacing: -.035em; }
+.settings { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.button, select {
+  min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 5px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+  color: var(--soft); font-size: .875rem; white-space: nowrap;
+}
+.button:hover:not(:disabled), select:hover { background: var(--raised); color: var(--text); }
+.button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.icon-button { min-width: 35px; padding-inline: 7px; }
+main { padding: 11px 0 14px; }
+.intro { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.intro > div:first-child { display: flex; align-items: baseline; gap: 12px; }
+.intro h2 { margin: 0; font-weight: 700; font-size: 1rem; letter-spacing: -.015em; white-space: nowrap; }
+.intro p { margin: 0; color: var(--muted); font-size: .84rem; }
+.local { display: flex; align-items: center; gap: 7px; font-size: .84rem; color: var(--soft); white-space: nowrap; }
+.local svg { color: var(--accent); }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-bottom: 11px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 8px; }
+.stat > div { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.stat-label { color: var(--muted); font-size: .84rem; }
+.stat strong { font: 600 1.08rem/1.25 var(--mono); font-variant-numeric: tabular-nums; }
+.stat-icon { order: -1; color: var(--accent); background: var(--accent-soft); border-radius: 6px; width: 24px; height: 24px; display: grid; place-items: center; flex: 0 0 auto; }
+.stat-icon svg { width: .9rem; height: .9rem; }
+.workbench { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 14px; }
+.panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.panel-head { min-height: 58px; flex-wrap: wrap; gap: 8px; padding: 10px 13px; display: flex; align-items: center; justify-content: space-between; }
+.heading { margin: 0; font-size: .99rem; display: flex; align-items: center; gap: 9px; white-space: nowrap; }
+.heading svg { color: var(--accent); }
+.actions, .result-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.primary, .primary:hover:not(:disabled) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 680; padding-inline: 12px; }
+.primary:hover:not(:disabled) { filter: brightness(.92); }
+.editor { margin: 0 10px; border: 1px solid var(--faint); border-radius: 8px; background: var(--inset); display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.gutter { flex: 0 0 auto; min-width: 36px; padding: 13px 8px; overflow: hidden; color: var(--muted); border-right: 1px solid var(--faint); text-align: right; user-select: none; }
+.gutter, textarea, .tree, .compact { font: .855rem/1.67 var(--mono); tab-size: 2; }
+textarea { border: 0; resize: none; min-width: 0; width: 100%; outline: none; padding: 13px 12px; background: transparent; }
+textarea:focus-visible { outline: none; }
+.editor:focus-within { border-color: var(--accent); }
+textarea::placeholder, input::placeholder { color: var(--muted); opacity: 1; }
+.input-foot { min-height: 47px; padding: 7px 12px; justify-content: space-between; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; color: var(--muted); font-size: .78rem; }
+.input-foot label { display: flex; align-items: center; gap: 7px; }
+select { display: block; min-width: 0; max-width: 100%; appearance: none; padding-right: 25px; background: var(--inset); }
+.select-box { position: relative; min-width: 0; }
+.select-box::after { content: ""; position: absolute; right: 10px; top: 50%; width: 5px; height: 5px; transform: translateY(-72%) rotate(45deg); border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); pointer-events: none; }
+.input-foot select { min-height: 29px; padding-block: 2px; font-size: .79rem; }
+.result-tools { margin: 0 10px; padding: 8px 0; border-top: 1px solid var(--faint); }
+.result-tools .select-box { flex: 1 1 155px; }
+.result-tools select { width: 100%; text-overflow: ellipsis; }
+.search { flex: 1.25 1 170px; display: flex; position: relative; min-width: 0; align-items: center; color: var(--muted); }
+.search svg { position: absolute; left: 9px; pointer-events: none; }
+.search input { width: 100%; min-height: 34px; padding: 5px 25px 5px 32px; background: var(--inset); border: 1px solid var(--line); border-radius: 7px; font-size: .875rem; color: var(--text); }
+.output { display: flex; flex: 1; flex-direction: column; min-height: 0; margin: 0 10px; background: var(--inset); border: 1px solid var(--faint); border-radius: 8px; overflow: hidden; }
+.path { min-height: 41px; display: flex; align-items: center; gap: 7px; padding: 6px 10px; border-bottom: 1px solid var(--faint); overflow-x: auto; white-space: nowrap; scrollbar-width: thin; font-size: .78rem; color: var(--muted); }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 5px; font: 600 .72rem/1.45 system-ui, sans-serif; white-space: nowrap; color: var(--accent); background: var(--accent-soft); vertical-align: middle; }
+.tree { min-height: 0; flex: 1; overflow: auto; padding: 9px 6px; }
+.row { display: flex; align-items: baseline; min-height: 25px; padding: 1px 8px 1px 0;  margin-left: calc(var(--depth) * 16px); gap: 6px; width: max-content; min-width: calc(100% - var(--depth) * 16px); white-space: pre; border-radius: 4px; }
+.row:hover { background: var(--raised); }
+.row .content { white-space: pre; }
+.node-toggle { align-self: flex-start; margin: 1px 0 0; background: transparent; width: 19px; height: 21px; border: 0; color: var(--muted); display: inline-grid; place-items: center; padding: 0; flex: 0 0 19px; }
+.node-toggle::before { content: ""; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); }
+.node-toggle[aria-expanded="true"]::before { transform: rotate(45deg) translate(-1px, -1px); }
+.node-spacer { width: 19px; flex: 0 0 19px; }
+.key { color: var(--key); } .string { color: var(--string); } .number { color: var(--number); } .literal { color: var(--literal); }
+.punctuation, .size { color: var(--muted); }
+mark { background: var(--mark); color: var(--text); border-radius: 2px; }
+.more { margin: 2px 0 2px calc(var(--depth) * 16px + 24px); }
+.empty { height: 100%; min-height: 120px; display: grid; align-content: center; justify-items: center; text-align: center; gap: 7px; white-space: normal; color: var(--muted); font: .875rem/1.5 system-ui, sans-serif; padding: 16px; }
+.empty svg { width: 28px; height: 28px; color: var(--accent); }
+.empty strong { color: var(--text); font-size: 1rem; }
+.compact { margin: 0; padding: 3px 7px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.result-foot { min-height: 47px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 7px 13px; font-size: .78rem; color: var(--muted); }
+.state { min-width: 0; display: flex; align-items: center; gap: 7px; }
+.state::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px; }
+.state[data-tone="good"] { color: var(--accent); }
+.state[data-tone="warn"] { color: var(--warn); }
+.state[data-tone="error"] { color: var(--error); }
+.toast { position: fixed; right: 22px; bottom: 22px; padding: 9px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 20px #0004; font-size: .875rem; z-index: 5; }
+[hidden] { display: none !important; }
+@media (max-width: 1070px) { .button-label { display: none; } .wrap { width: calc(100% - 40px); } }
+@media (max-width: 900px) { .intro p { display: none; } }
+@media (min-width: 761px) {
+  body { height: 100dvh; display: flex; flex-direction: column; }
+  main { flex: 1; min-height: 540px; display: flex; flex-direction: column; }
+  .intro, .stats { flex: none; }
+  .workbench { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .wrap { width: calc(100% - 24px); }
+  .workbench { grid-template-columns: minmax(0, 1fr); }
+  .panel { height: min(75dvh, 640px); min-height: 405px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+}
+@media (max-width: 425px) { .stat-icon { display: none; } }
+@media (max-width: 360px) {
+  .top-inner { gap: 7px; }
+  h1 { font-size: 1rem; }
+  .settings { gap: 5px; }
+  .settings .button { padding-inline: 7px; }
+}
+</style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" hidden aria-hidden="true">
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19m0-14-1.5 1.5m-11 11L5 19"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13.2A9 9 0 0 1 10.8 3 9 9 0 1 0 21 13.2Z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 4v3"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 4c-10 0-15 4-15 10a5 5 0 0 0 5 5c6 0 10-5 10-15ZM4 20l9-9"/></symbol>
+  <symbol id="i-nest" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M10 4 7 20m10-16-3 16M4 9h16M3 15h16"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m7 6-6 6 6 6m10-12 6 6-6 6M14 4l-4 16"/></symbol>
+  <symbol id="i-tree" viewBox="0 0 24 24"><path d="M5 4v13a2 2 0 0 0 2 2h5M5 8h7m-7 6h7"/><path d="M15 6h5v4h-5zm0 6h5v4h-5zm0 6h5v4h-5z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="m7 8 5-5 5 5m-10 8 5 5 5-5"/></symbol>
+  <symbol id="i-collapse" viewBox="0 0 24 24"><path d="m7 3 5 5 5-5m-10 18 5-5 5 5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/></symbol>
+  <symbol id="i-compact" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h16"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="5.8"/><path d="m15 15 5 5"/></symbol>
+  <symbol id="i-path" viewBox="0 0 24 24"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M5 7v7a5 5 0 0 0 5 5h7"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <span class="logo" aria-hidden="true">{}</span>
+    <h1>Smart JSON Parser</h1>
+    <div class="settings">
+      <button type="button" class="button" id="language"><svg aria-hidden="true"><use href="#i-globe"/></svg><span id="language-label">EN</span></button>
+      <button type="button" class="button icon-button" id="theme"><svg aria-hidden="true"><use id="theme-icon" href="#i-sun"/></svg></button>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <section class="intro" aria-labelledby="overview">
+    <div><h2 id="overview" data-t="overview">JSON 解析工作台</h2><p data-t="intro">粘贴 JSON、日志、URL 或编码文本，自动识别并展开嵌套数据。</p></div>
+    <div class="local" id="local"><svg aria-hidden="true"><use href="#i-lock"/></svg><span data-t="local">仅在本地解析</span></div>
+  </section>
+  <section class="stats" id="stats">
+    <div class="stat"><div><div class="stat-label" data-t="fields">顶层字段</div><strong id="fields">—</strong></div><span class="stat-icon"><svg aria-hidden="true"><use href="#i-grid"/></svg></span></div>
+    <div class="stat"><div><div class="stat-label" data-t="leaves">叶子节点</div><strong id="leaves">—</strong></div><span class="stat-icon"><svg aria-hidden="true"><use href="#i-leaf"/></svg></span></div>
+    <div class="stat"><div><div class="stat-label" data-t="nested">嵌套展开</div><strong id="nested">—</strong></div><span class="stat-icon"><svg aria-hidden="true"><use href="#i-nest"/></svg></span></div>
+    <div class="stat"><div><div class="stat-label" data-t="length">输入长度</div><strong id="length">0</strong></div><span class="stat-icon"><svg aria-hidden="true"><use href="#i-hash"/></svg></span></div>
+  </section>
+  <div class="workbench">
+    <section class="panel" aria-labelledby="input-title">
+      <div class="panel-head">
+        <h2 id="input-title" class="heading"><svg aria-hidden="true"><use href="#i-code"/></svg><span data-t="input">原始输入</span></h2>
+        <div class="actions">
+          <button type="button" class="button" id="sample" data-t="sample">载入示例</button>
+          <button type="button" class="button" id="clear" data-t="clear">清空</button>
+          <button type="button" class="button primary" id="parse"><svg aria-hidden="true"><use href="#i-play"/></svg><span data-t="parse">解析</span></button>
+        </div>
+      </div>
+      <div class="editor">
+        <div id="gutter" class="gutter" aria-hidden="true">1</div>
+        <textarea id="input" wrap="off" spellcheck="false" autocomplete="off" autocapitalize="off" aria-labelledby="input-title" placeholder="在这里粘贴任意文本…"></textarea>
+      </div>
+      <div class="input-foot">
+        <span data-t="automatic">实时解析 · Ctrl / ⌘ + Enter</span>
+        <label><span data-t="timeout">超时上限</span><span class="select-box"><select id="timeout"><option value="2">2 s</option><option value="3" selected>3 s</option><option value="4">4 s</option><option value="5">5 s</option><option value="6">6 s</option></select></span></label>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="result-title">
+      <div class="panel-head">
+        <h2 id="result-title" class="heading"><svg aria-hidden="true"><use href="#i-tree"/></svg><span data-t="result">解析结果</span></h2>
+        <div class="actions">
+          <button type="button" class="button icon-button" id="expand"><svg aria-hidden="true"><use href="#i-expand"/></svg></button>
+          <button type="button" class="button icon-button" id="collapse"><svg aria-hidden="true"><use href="#i-collapse"/></svg></button>
+          <button type="button" class="button icon-button" id="compact" aria-pressed="false"><svg aria-hidden="true"><use href="#i-compact"/></svg></button>
+          <button type="button" class="button" id="copy"><svg aria-hidden="true"><use href="#i-copy"/></svg><span class="button-label" data-t="copy">复制</span></button>
+          <button type="button" class="button" id="download"><svg aria-hidden="true"><use href="#i-download"/></svg><span class="button-label" data-t="download">下载</span></button>
+        </div>
+      </div>
+      <div class="result-tools">
+        <label class="search"><svg aria-hidden="true"><use href="#i-search"/></svg><input id="search" type="search" autocomplete="off" placeholder="搜索键或值"></label>
+        <div class="select-box"><select id="candidates" disabled></select></div>
+      </div>
+      <div class="output">
+        <div class="path" id="path"></div>
+        <div class="tree" id="tree" role="region" tabindex="0" aria-labelledby="result-title"></div>
+      </div>
+      <div class="result-foot" aria-live="polite"><span class="state" id="status"></span><span id="details"></span></div>
+    </section>
+  </div>
+</main>
+<div class="toast" id="toast" role="status" hidden></div>
+<script>
+function parserWorker() {
+  const MAX_INPUT = 1_000_000;
+  const MAX_NODES = 100_000;
+  const MAX_DEPTH = 150;
+  const MAX_EXPANSIONS = 500;
+  const LIMITS = { unwrap: 7, unescape: 7, url: 4, base64: 3, extract: 2 };
+  const OWN = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
+  const container = value => value !== null && typeof value === 'object';
+  const numberPattern = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+  const trim = value => value.trim().replace(/^\uFEFF/, '');
+  const pointer = (path, key) => path + '/' + String(key).replace(/~/g, '~0').replace(/\//g, '~1');
+
+  function strict(source) {
+    try { return { value: JSON.parse(source) }; }
+    catch { return null; }
+  }
+
+  // Parse permissive syntax directly, keeping comment and separator rules outside strings.
+  function relaxed(source, java = false) {
+    let at = 0;
+    let nodes = 0;
+    const invalid = () => { throw new SyntaxError(); };
+    const space = /\s/;
+    const literals = new Map([['true', true], ['false', false], ['null', null], ['none', null], ['non', null]]);
+    const escaped = { '"': '"', "'": "'", '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v' };
+
+    function skip() {
+      while (at < source.length) {
+        if (space.test(source[at])) { at++; continue; }
+        if (java) return;
+        if (source.startsWith('//', at) || source[at] === '#') {
+          while (at < source.length && source[at] !== '\n' && source[at] !== '\r') at++;
+        } else if (source.startsWith('/*', at)) {
+          const end = source.indexOf('*/', at + 2);
+          if (end < 0) invalid();
+          at = end + 2;
+        } else return;
+      }
+    }
+
+    function quoted() {
+      const quote = source[at++];
+      let start = at;
+      let value = '';
+      while (at < source.length) {
+        const character = source[at++];
+        if (character === quote) return value + source.slice(start, at - 1);
+        if (character !== '\\') continue;
+        value += source.slice(start, at - 1);
+        const symbol = source[at++];
+        if (OWN(escaped, symbol)) value += escaped[symbol];
+        else if (symbol === 'u' || symbol === 'x') {
+          const width = symbol === 'u' ? 4 : 2;
+          const digits = source.slice(at, at + width);
+          if (digits.length !== width || !/^[\da-f]+$/i.test(digits)) invalid();
+          value += String.fromCharCode(parseInt(digits, 16));
+          at += width;
+        } else if (symbol === '\n' || symbol === '\r') {
+          if (symbol === '\r' && source[at] === '\n') at++;
+        } else if (java && symbol !== undefined) value += '\\' + symbol;
+        else invalid();
+        start = at;
+      }
+      invalid();
+    }
+
+    function tokenForKey() {
+      if (source[at] === '"' || source[at] === "'") return quoted();
+      const start = at;
+      if (java) {
+        while (at < source.length && !/[={}\[\],]/.test(source[at])) at++;
+      } else {
+        while (at < source.length && !/[\s:{}\[\],#"'\\]/.test(source[at]) &&
+               !source.startsWith('//', at) && !source.startsWith('/*', at)) at++;
+      }
+      const key = source.slice(start, at).trim();
+      if (!key && !java) invalid();
+      return key;
+    }
+
+    function read(depth) {
+      if (++nodes > MAX_NODES || depth > MAX_DEPTH) invalid();
+      skip();
+      const character = source[at];
+      if (character === '"' || character === "'") return quoted();
+      if (character === '{' || character === '[') {
+        at++;
+        const object = character === '{';
+        const end = object ? '}' : ']';
+        const result = object ? Object.create(null) : [];
+        skip();
+        while (source[at] !== end) {
+          if (at >= source.length) invalid();
+          if (object) {
+            const key = tokenForKey();
+            skip();
+            if (source[at++] !== (java ? '=' : ':')) invalid();
+            result[key] = read(depth + 1);
+          } else {
+            result.push(read(depth + 1));
+          }
+          skip();
+          if (source[at] === end) break;
+          if (source[at++] !== ',') invalid();
+          skip();
+        }
+        at++;
+        return result;
+      }
+      const start = at;
+      if (java) {
+        while (at < source.length && !/[,}\]]/.test(source[at])) at++;
+      } else {
+        while (at < source.length && !/[\s,}\]#]/.test(source[at]) &&
+               !source.startsWith('//', at) && !source.startsWith('/*', at)) at++;
+      }
+      const token = source.slice(start, at).trim();
+      const literal = token.toLowerCase();
+      if (literals.has(literal)) return literals.get(literal);
+      if (numberPattern.test(token) && Number.isFinite(Number(token))) return Number(token);
+      if (java) return token;
+      invalid();
+    }
+
+    try {
+      if (java && !/^[{[]/.test(source)) return null;
+      const value = read(0);
+      skip();
+      return at === source.length ? { value } : null;
+    } catch { return null; }
+  }
+
+  function decodePart(value) {
+    const form = value.replace(/\+/g, ' ');
+    try { return decodeURIComponent(form); }
+    catch {
+      return form.replace(/(?:%[\da-f]{2})+/gi, part => {
+        try { return decodeURIComponent(part); }
+        catch { return part; }
+      });
+    }
+  }
+
+  function readQuery(source) {
+    let query = source;
+    if (/^[a-z][a-z\d+.-]*:\/\//i.test(query)) {
+      try { query = new URL(query).search.slice(1); }
+      catch { return null; }
+    } else if (query.startsWith('?')) {
+      query = query.slice(1).split('#', 1)[0];
+    } else {
+      if (/^[{['"<]/.test(query)) return null;
+      query = query.replace(/\s+and\s+(?=[^\s&=]+[\t ]*=)/gi, '&');
+    }
+    if (!query.includes('=')) return null;
+    const result = Object.create(null);
+    const repeated = new Set();
+    let fields = 0;
+    for (const part of query.split('&')) {
+      if (!part) continue;
+      const equal = part.indexOf('=');
+      const encodedKey = (equal < 0 ? part : part.slice(0, equal)).trim();
+      if (!/^[^\s=<>{}"'\\]+$/u.test(encodedKey) || ++fields > MAX_NODES) return null;
+      const key = decodePart(encodedKey);
+      const value = equal < 0 ? '' : decodePart(part.slice(equal + 1));
+      if (repeated.has(key)) result[key].push(value);
+      else if (OWN(result, key)) {
+        repeated.add(key);
+        result[key] = [result[key], value];
+      } else result[key] = value;
+    }
+    return fields ? result : null;
+  }
+
+  function decode64(source) {
+    if (source.length < 4 || !/^[a-z\d+/_=\s-]+$/i.test(source)) return null;
+    const clean = source.replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    if (!/^[a-z\d+/]+={0,2}$/i.test(clean)) return null;
+    try {
+      const data = Uint8Array.from(atob(clean), character => character.charCodeAt(0));
+      return new TextDecoder('utf-8', { fatal: true }).decode(data);
+    } catch { return null; }
+  }
+
+  function unescapeVariants(source) {
+    if (!source.includes('\\')) return [];
+    const short = source.replace(/\\([\\"'])/g, '$1');
+    const long = source.replace(/\\(u[\da-f]{4}|x[\da-f]{2}|[\\"'/bfnrt])/gi, (_, symbol) => {
+      if (/^[ux]/i.test(symbol) && symbol.length > 1) return String.fromCharCode(parseInt(symbol.slice(1), 16));
+      return ({ b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' })[symbol] ?? symbol;
+    });
+    return short === long ? [short] : [short, long];
+  }
+
+  function urlVariants(source) {
+    if (!/%[\da-f]{2}/i.test(source)) return [];
+    try {
+      const decoded = decodeURIComponent(source);
+      return source.includes('+') ? [decoded, decodeURIComponent(source.replace(/\+/g, ' '))] : [decoded];
+    } catch { return [decodePart(source)]; }
+  }
+
+  function jsonLines(source, checkTime) {
+    if (!source.includes('\n')) return null;
+    const values = [];
+    let start = 0;
+    while (start < source.length && !checkTime()) {
+      const next = source.indexOf('\n', start);
+      const line = source.slice(start, next === -1 ? undefined : next).trim();
+      if (line) {
+        const parsed = strict(line);
+        if (!parsed || values.length >= MAX_NODES - 1) return null;
+        values.push(parsed.value);
+      }
+      if (next === -1) return values.length > 1 ? values : null;
+      start = next + 1;
+    }
+    return null;
+  }
+
+  function extract(source, checkTime, maxFragments) {
+    const fragments = [];
+    const stack = [];
+    let start = 0;
+    let quote = '';
+    let mode = '';
+    for (let at = 0; at < source.length; at++) {
+      if ((at & 2047) === 0 && checkTime()) break;
+      const character = source[at];
+      if (quote) {
+        if (character === '\\') at++;
+        else if (character === quote) quote = '';
+        continue;
+      }
+      if (stack.length) {
+        if (character === '\\' && /["']/.test(source[at + 1] ?? '')) { at++; continue; }
+        if (character === '"' || character === "'") { quote = character; continue; }
+        if (!mode && (character === ':' || character === '=')) mode = character;
+        if (mode !== '=' && (source.startsWith('//', at) || character === '#')) {
+          const end = source.indexOf('\n', at + 2);
+          if (end !== -1) at = end;
+          else break;
+          continue;
+        }
+        if (mode !== '=' && source.startsWith('/*', at)) {
+          const end = source.indexOf('*/', at + 2);
+          if (end === -1) break;
+          at = end + 1;
+          continue;
+        }
+      }
+      if (character === '{' || character === '[') {
+        if (!stack.length) { start = at; mode = ''; }
+        stack.push(character === '{' ? '}' : ']');
+      } else if (stack.length && (character === '}' || character === ']')) {
+        if (stack.pop() !== character) {
+          stack.length = 0;
+        } else if (!stack.length && (start > 0 || at + 1 < source.length)) {
+          fragments.push(source.slice(start, at + 1));
+          if (fragments.length > maxFragments) break;
+        }
+      }
+    }
+    // An unmatched prefix bracket in a log should not hide balanced data after it.
+    if (stack.length && !checkTime() && start + 1 < source.length && source.length - start < 65536) {
+      return fragments.concat(extractRemainder(source.slice(start + 1), checkTime, maxFragments));
+    }
+    return fragments;
+  }
+
+  function extractRemainder(source, checkTime, maxFragments) {
+    const matches = [];
+    const starts = /[{[]/g;
+    let match;
+    let attempts = 0;
+    while ((match = starts.exec(source)) && ++attempts <= 32 && !checkTime()) {
+      const slice = source.slice(match.index);
+      const end = balancedEnd(slice);
+      if (end) {
+        matches.push(slice.slice(0, end));
+        starts.lastIndex = match.index + end;
+        if (matches.length > maxFragments) break;
+      }
+    }
+    return matches;
+  }
+
+  function balancedEnd(source) {
+    const stack = [];
+    let quote = '';
+    for (let at = 0; at < source.length; at++) {
+      const character = source[at];
+      if (quote) {
+        if (character === '\\') at++;
+        else if (character === quote) quote = '';
+      } else if (character === '"' || character === "'") quote = character;
+      else if (character === '{' || character === '[') stack.push(character === '{' ? '}' : ']');
+      else if (character === '}' || character === ']') {
+        if (stack.pop() !== character) return 0;
+        if (!stack.length) return at + 1;
+      }
+    }
+    return 0;
+  }
+
+  function analyze(value) {
+    const stack = [{ value, depth: 0 }];
+    let leaves = 0;
+    let nodes = 0;
+    while (stack.length) {
+      const entry = stack.pop();
+      if (++nodes > MAX_NODES || entry.depth > MAX_DEPTH) return null;
+      if (typeof entry.value === 'number' && !Number.isFinite(entry.value)) return null;
+      if (!container(entry.value)) { leaves++; continue; }
+      const children = Object.values(entry.value);
+      if (children.length + stack.length + nodes > MAX_NODES) return null;
+      for (const child of children) stack.push({ value: child, depth: entry.depth + 1 });
+    }
+    return { nodes, leaves, fields: container(value) ? Object.keys(value).length : 0 };
+  }
+
+  function compare(a, b) {
+    return Number(container(b.value)) - Number(container(a.value)) ||
+      b.stats.leaves - a.stats.leaves || a.path.length - b.path.length;
+  }
+
+  function search(source, context, nested = false) {
+    const budget = nested ? 24 : source.length > 250000 ? 20 : source.length > 50000 ? 44 : 96;
+    const fragmentLimit = nested ? 16 : 64;
+    const queue = [{ source, path: [], counts: Object.create(null) }];
+    const visited = new Map([[source, [queue[0].counts]]]);
+    const found = new Map();
+
+    function record(value, path) {
+      if (nested && !container(value)) return;
+      const stats = analyze(value);
+      if (!stats) { context.limited = true; return; }
+      const signature = JSON.stringify(value);
+      const previous = found.get(signature);
+      if (!previous || previous.path.length > path.length) found.set(signature, { value, path, stats });
+    }
+
+    for (let index = 0; index < queue.length && !context.checkTime(); index++) {
+      const current = queue[index];
+      const { source: input, path, counts } = current;
+      const parsed = strict(input);
+
+      function enqueue(step, variants) {
+        for (const variant of variants) {
+          if (!variant || variant.length > MAX_INPUT) continue;
+          const next = trim(variant);
+          if (!next || next === input) continue;
+          const nextCounts = { ...counts, [step]: (counts[step] ?? 0) + 1 };
+          const histories = visited.get(next) ?? [];
+          if (histories.some(history => Object.keys(history).every(key => history[key] <= (nextCounts[key] ?? 0)))) continue;
+          if (queue.length >= budget || path.length >= 11) { context.limited = true; continue; }
+          histories.push(nextCounts);
+          visited.set(next, histories);
+          queue.push({ source: next, path: [...path, step], counts: nextCounts });
+        }
+      }
+
+      if (parsed) {
+        record(parsed.value, [...path, 'json']);
+        if (typeof parsed.value === 'string' && (counts.unwrap ?? 0) < LIMITS.unwrap) enqueue('unwrap', [parsed.value]);
+        continue;
+      }
+
+      const loose = relaxed(input);
+      if (loose) {
+        record(loose.value, [...path, 'loose']);
+        if (container(loose.value)) continue;
+        if (typeof loose.value === 'string' && (counts.unwrap ?? 0) < LIMITS.unwrap) enqueue('unwrap', [loose.value]);
+      }
+      if (/^[{[]/.test(input) && input.includes('=')) {
+        const map = relaxed(input, true);
+        if (map) {
+          record(map.value, [...path, 'java']);
+          continue;
+        }
+      }
+
+      const lines = jsonLines(input, context.checkTime);
+      if (lines) {
+        record(lines, [...path, 'merge']);
+        if (counts.extract) continue;
+      }
+
+      const decoded64 = (counts.base64 ?? 0) < LIMITS.base64 ? decode64(input) : null;
+      // A padded Base64 token is otherwise indistinguishable from an empty query field.
+      const query = decoded64 !== null && /=\s*$/.test(input) ? null : readQuery(input);
+      if (query) {
+        record(query, [...path, 'query']);
+        continue;
+      }
+
+      if ((counts.unescape ?? 0) < LIMITS.unescape) enqueue('unescape', unescapeVariants(input));
+      if ((counts.url ?? 0) < LIMITS.url) enqueue('url', urlVariants(input));
+      enqueue('base64', [decoded64]);
+      if ((counts.extract ?? 0) < LIMITS.extract && /[{[]/.test(input)) {
+        const fragments = extract(input, context.checkTime, fragmentLimit);
+        if (fragments.length > fragmentLimit) context.limited = true;
+        const valid = [];
+        for (const fragment of fragments.slice(0, fragmentLimit)) {
+          if (context.checkTime()) break;
+          const piece = strict(fragment) ?? relaxed(fragment) ?? (fragment.includes('=') ? relaxed(fragment, true) : null);
+          if (piece && container(piece.value)) valid.push({ fragment, value: piece.value });
+          else {
+            if (fragment.includes('\\') || fragment.includes('%')) enqueue('extract', [fragment]);
+            const inside = fragment.slice(1, -1);
+            if (/[{[]/.test(inside)) enqueue('extract', [inside]);
+          }
+        }
+        if (valid.length > 1) record(valid.map(piece => piece.value), [...path, 'extract', 'merge']);
+        enqueue('extract', valid.map(piece => piece.fragment));
+      }
+    }
+
+    return [...found.values()].sort(compare);
+  }
+
+  function expand(candidate, context, cache) {
+    let nodes = candidate.stats.nodes;
+    const badges = Object.create(null);
+    let count = 0;
+
+    function walk(value, path, depth, rounds) {
+      if (context.checkTime()) return value;
+      if (typeof value === 'string' && rounds < 8 && depth < MAX_DEPTH && value.length >= 2 &&
+          (/[{[=%\\]/.test(value) || /^[a-z\d+/_\s-]{4,}$/i.test(value))) {
+        if (count >= MAX_EXPANSIONS) { context.limited = true; return value; }
+        const source = trim(value);
+        let match = cache.get(source);
+        if (match === undefined) {
+          match = search(source, context, true)[0] ?? null;
+          if (cache.size < 512 && source.length < 32768 && !context.timedOut) cache.set(source, match);
+        }
+        if (match && nodes + match.stats.nodes - 1 <= MAX_NODES) {
+          badges[path] = match.path;
+          count++;
+          nodes += match.stats.nodes - 1;
+          return walk(match.value, path, depth, rounds + 1);
+        }
+        if (match) context.limited = true;
+      }
+      if (!container(value) || depth >= MAX_DEPTH || context.timedOut) return value;
+      if (Array.isArray(value)) return value.map((child, index) => walk(child, pointer(path, index), depth + 1, rounds));
+      const result = Object.create(null);
+      for (const key of Object.keys(value)) result[key] = walk(value[key], pointer(path, key), depth + 1, rounds);
+      return result;
+    }
+
+    const value = container(candidate.value) ? walk(candidate.value, '', 0, 0) : candidate.value;
+    const stats = analyze(value);
+    if (!stats) {
+      context.limited = true;
+      return { ...candidate, badges: {}, nested: 0 };
+    }
+    return { ...candidate, value, stats, badges, nested: count };
+  }
+
+  self.onmessage = ({ data }) => {
+    const start = performance.now();
+    const context = {
+      timedOut: false,
+      limited: false,
+      checkTime() {
+        if (Date.now() >= data.deadline) context.timedOut = true;
+        return context.timedOut;
+      }
+    };
+    if (data.source.length > MAX_INPUT) {
+      self.postMessage({ candidates: [], tooLarge: true, elapsed: 0 });
+      return;
+    }
+    const source = trim(data.source);
+    const raw = source ? search(source, context) : [];
+    const cache = new Map();
+    const expanded = new Map();
+    for (const candidate of raw) {
+      const result = expand(candidate, context, cache);
+      const signature = JSON.stringify(result.value);
+      const previous = expanded.get(signature);
+      if (!previous || compare(result, previous) < 0 ||
+          (!compare(result, previous) && result.nested > previous.nested)) expanded.set(signature, result);
+    }
+    self.postMessage({
+      candidates: [...expanded.values()].sort(compare),
+      elapsed: Math.round(performance.now() - start),
+      timedOut: context.timedOut,
+      limited: context.limited
+    });
+  };
+}
+const $ = id => document.getElementById(id);
+const translations = {
+  zh: {
+    overview: 'JSON 解析工作台', intro: '粘贴 JSON、日志、URL 或编码文本，自动识别并展开嵌套数据。',
+    local: '仅在本地解析', stats: '解析统计', fields: '顶层字段', leaves: '叶子节点', nested: '嵌套展开', length: '输入长度',
+    input: '原始输入', result: '解析结果', sample: '载入示例', clear: '清空', parse: '解析',
+    automatic: '实时解析 · Ctrl / ⌘ + Enter', timeout: '超时上限', placeholder: '在这里粘贴任意文本…',
+    expand: '全部展开', collapse: '全部折叠', compact: '压缩视图', tree: '树形视图', copy: '复制', download: '下载',
+    search: '搜索键或值', candidates: '解析候选', best: '最佳', noCandidates: '暂无候选', path: '解析路径',
+    idle: '等待输入', idleHint: '粘贴文本，或载入示例开始。', working: '正在解析…',
+    success: '解析成功', failed: '未识别到可解析内容',
+    failedHint: '试试 JSON、日志片段、查询串、Base64 或 Java Map。',
+    timeoutHit: '达到超时上限', limited: '达到搜索上限', tooLarge: '输入超过 100 万字符',
+    tooLargeHint: '请缩短输入后重试。', timeoutHint: '可提高超时上限，或缩短输入后重试。',
+    workerError: '解析进程未能运行', workerHint: '请在支持 Web Worker 的现代浏览器中打开此文件。',
+    noMatch: '没有匹配项', noMatchHint: '试试其他键名或值。', hits: n => n + ' 处匹配',
+    more: '加载更多节点', copied: '已复制 JSON', copyError: '浏览器未授予剪贴板访问权限',
+    downloaded: '已准备下载', light: '切换到浅色主题', dark: '切换到深色主题', language: 'Switch to English',
+    json: '标准 JSON', loose: '宽松解析', java: 'Java Map', query: '查询串',
+    unwrap: '解开引号', unescape: '反转义', url: 'URL 解码', base64: 'Base64 解码',
+    extract: '提取片段', merge: '合并为数组', object: '对象', array: '数组', scalar: '标量',
+    candidate: (n, kind, step) => '候选 ' + n + ' · ' + kind + ' · ' + step,
+    summary: (n, ms) => n + ' 个候选 · ' + ms + ' ms', defaultBadge: '已展开', root: '根节点'
+  },
+  en: {
+    overview: 'JSON workspace', intro: 'Paste JSON, logs, URLs, or encoded text to parse and expand nested data.',
+    local: 'Processed locally', stats: 'Parsing statistics', fields: 'Top-level fields', leaves: 'Leaf nodes', nested: 'Nested expansions', length: 'Input length',
+    input: 'Raw input', result: 'Parsed result', sample: 'Load sample', clear: 'Clear', parse: 'Parse',
+    automatic: 'Live parsing · Ctrl / ⌘ + Enter', timeout: 'Time limit', placeholder: 'Paste any text here…',
+    expand: 'Expand all', collapse: 'Collapse all', compact: 'Compact view', tree: 'Tree view', copy: 'Copy', download: 'Download',
+    search: 'Search keys or values', candidates: 'Parse candidates', best: 'Best', noCandidates: 'No candidates', path: 'Parse path',
+    idle: 'Waiting for input', idleHint: 'Paste some text or load the sample to get started.', working: 'Parsing…',
+    success: 'Parsed successfully', failed: 'No parseable content found',
+    failedHint: 'Try JSON, a log fragment, a query string, Base64, or a Java Map.',
+    timeoutHit: 'Time limit reached', limited: 'Search limit reached', tooLarge: 'Input exceeds 1 million characters',
+    tooLargeHint: 'Shorten the input and try again.', timeoutHint: 'Increase the time limit or try a shorter input.',
+    workerError: 'Parser could not run', workerHint: 'Open this file in a modern browser with Web Worker support.',
+    noMatch: 'No matches', noMatchHint: 'Try a different key or value.', hits: n => n + (n === 1 ? ' match' : ' matches'),
+    more: 'Load more nodes', copied: 'JSON copied', copyError: 'Clipboard access is unavailable',
+    downloaded: 'Download prepared', light: 'Switch to light mode', dark: 'Switch to dark mode', language: '切换到中文',
+    json: 'Standard JSON', loose: 'Relaxed parse', java: 'Java Map', query: 'Query string',
+    unwrap: 'Unwrap string', unescape: 'Unescape', url: 'URL decode', base64: 'Base64 decode',
+    extract: 'Extract fragment', merge: 'Merge into array', object: 'Object', array: 'Array', scalar: 'Scalar',
+    candidate: (n, kind, step) => 'Candidate ' + n + ' · ' + kind + ' · ' + step,
+    summary: (n, ms) => n + (n === 1 ? ' candidate' : ' candidates') + ' · ' + ms + ' ms', defaultBadge: 'Expanded', root: 'Root'
+  }
+};
+const sample = [
+  '2026-11-21 14:32:08 INFO checkout.completed',
+  '{',
+  '  "requestId": "req_7f2a",',
+  '  "status": 200,',
+  '  "success": true,',
+  '  "event": "checkout.completed",',
+  '  "payload": "{\\"orderId\\":\\"ORD-1084\\",\\"total\\":29.5}",',
+  '  "filters": "region=apac&tag=priority&tag=new",',
+  '  "context": "%7B%22source%22%3A%22web%22%7D",',
+  '  "encoded": "eyJ2ZXJzaW9uIjoyfQ==",',
+  '  "tags": ["billing", "web"],',
+  '  "message": "Payment captured (ok) {verified}"',
+  '}'
+].join('\n');
+
+const input = $('input');
+const tree = $('tree');
+const searchInput = $('search');
+const candidatesSelect = $('candidates');
+const pathBar = $('path');
+const workerUrl = URL.createObjectURL(new Blob(['(' + parserWorker.toString() + ')()'], { type: 'text/javascript' }));
+const pointer = (path, key) => path + '/' + String(key).replace(/~/g, '~0').replace(/\//g, '~1');
+const isContainer = value => value !== null && typeof value === 'object';
+const prefers = (key, fallback) => { try { return localStorage.getItem('smart-json-' + key) ?? fallback; } catch { return fallback; } };
+const remember = (key, value) => { try { localStorage.setItem('smart-json-' + key, value); } catch {} };
+let language = prefers('language', 'zh') === 'en' ? 'en' : 'zh';
+let theme = prefers('theme', 'dark') === 'light' ? 'light' : 'dark';
+let t = translations[language];
+let formatter;
+let result = null;
+let phase = 'idle';
+let selected = 0;
+let worker;
+let watchdog;
+let debounce;
+let searchTimer;
+let toastTimer;
+let compact = false;
+let expandedMode = 'default';
+let overrides = new Map();
+let renderLimit = 850;
+let searchCache;
+let lineCount = 1;
+const current = () => result?.candidates[selected];
+
+function element(tag, className, content) {
+  const item = document.createElement(tag);
+  if (className) item.className = className;
+  if (content !== undefined) item.textContent = content;
+  return item;
+}
+
+function icon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const use = document.createElementNS(svg.namespaceURI, 'use');
+  use.setAttribute('href', '#i-' + name);
+  svg.setAttribute('aria-hidden', 'true');
+  svg.append(use);
+  return svg;
+}
+
+function describe(id, label) {
+  $(id).title = label;
+  $(id).setAttribute('aria-label', label);
+}
+
+function applySettings() {
+  t = translations[language];
+  formatter = new Intl.NumberFormat(language === 'zh' ? 'zh-CN' : 'en-US');
+  document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
+  document.documentElement.dataset.theme = theme;
+  document.querySelectorAll('[data-t]').forEach(node => { node.textContent = t[node.dataset.t]; });
+  $('language-label').textContent = language === 'zh' ? 'EN' : '中文';
+  $('theme-icon').setAttribute('href', theme === 'dark' ? '#i-sun' : '#i-moon');
+  input.placeholder = t.placeholder;
+  searchInput.placeholder = t.search;
+  describe('language', t.language);
+  describe('theme', theme === 'dark' ? t.light : t.dark);
+  for (const id of ['search', 'candidates', 'expand', 'collapse', 'copy', 'download', 'local']) describe(id, t[id]);
+  $('stats').setAttribute('aria-label', t.stats);
+  describe('compact', compact ? t.tree : t.compact);
+  render();
+}
+
+function drawGutter() {
+  const gutter = $('gutter');
+  const lineHeight = parseFloat(getComputedStyle(input).lineHeight);
+  if (!lineHeight) return;
+  const first = Math.floor(input.scrollTop / lineHeight);
+  const visible = Math.min(Math.ceil(input.clientHeight / lineHeight) + 2, lineCount - first);
+  const rows = element('div', '', Array.from({ length: Math.max(0, visible) }, (_, index) => first + index + 1).join('\n'));
+  rows.style.whiteSpace = 'pre';
+  rows.style.transform = 'translateY(' + (first * lineHeight - input.scrollTop) + 'px)';
+  gutter.style.minWidth = Math.max(36, 18 + String(lineCount).length * 9) + 'px';
+  gutter.replaceChildren(rows);
+}
+
+function updateLines() {
+  const value = input.value;
+  let at = -1;
+  lineCount = 1;
+  if (value.length <= 1_000_000) {
+    while ((at = value.indexOf('\n', at + 1)) !== -1) lineCount++;
+  }
+  drawGutter();
+}
+
+function stopWorker() {
+  clearTimeout(watchdog);
+  if (worker) worker.terminate();
+  worker = undefined;
+}
+
+function resetTree() {
+  expandedMode = 'default';
+  overrides = new Map();
+  renderLimit = 850;
+  searchCache = undefined;
+  tree.scrollTo(0, 0);
+}
+
+function startParse() {
+  clearTimeout(debounce);
+  stopWorker();
+  const source = input.value;
+  result = null;
+  selected = 0;
+  resetTree();
+  phase = !source.trim() ? 'idle' : 'working';
+  render();
+  if (phase === 'idle') return;
+  if (source.length > 1_000_000) {
+    phase = 'done';
+    result = { candidates: [], tooLarge: true, elapsed: 0 };
+    render();
+    return;
+  }
+  const limit = Number($('timeout').value) * 1000;
+  const finish = response => {
+    stopWorker();
+    phase = 'done';
+    result = response;
+    render();
+  };
+  try {
+    worker = new Worker(workerUrl);
+    worker.onmessage = event => finish(event.data);
+    worker.onerror = () => finish({ candidates: [], workerError: true, elapsed: 0 });
+    watchdog = setTimeout(() => finish({ candidates: [], timedOut: true, elapsed: limit }), limit);
+    worker.postMessage({ source, deadline: Date.now() + limit - 100 });
+  } catch {
+    finish({ candidates: [], workerError: true, elapsed: 0 });
+  }
+}
+
+function onInput() {
+  clearTimeout(debounce);
+  stopWorker();
+  result = null;
+  updateLines();
+  phase = 'idle';
+  if (input.value.trim()) {
+    phase = 'working';
+    debounce = setTimeout(startParse, 230);
+  }
+  render();
+}
+
+function renderPath(candidate) {
+  const label = element('span', '', t.path);
+  pathBar.replaceChildren(icon('path'), label);
+  if (!candidate) { pathBar.append(element('span', '', '—')); return; }
+  candidate.path.forEach((step, index) => {
+    if (index) pathBar.append(element('span', '', '›'));
+    pathBar.append(element('span', 'badge', t[step]));
+  });
+}
+
+function statusInfo() {
+  if (phase === 'idle') return ['idle', 'idleHint', ''];
+  if (phase === 'working') return ['working', '', ''];
+  if (result.tooLarge) return ['tooLarge', 'tooLargeHint', 'error'];
+  if (result.workerError) return ['workerError', 'workerHint', 'error'];
+  if (result.timedOut) return ['timeoutHit', 'timeoutHint', 'warn'];
+  if (result.limited) return ['limited', 'tooLargeHint', 'warn'];
+  if (!current()) return ['failed', 'failedHint', 'error'];
+  return ['success', '', 'good'];
+}
+
+function render() {
+  const candidate = current();
+  $('fields').textContent = candidate ? formatter.format(candidate.stats.fields) : '—';
+  $('leaves').textContent = candidate ? formatter.format(candidate.stats.leaves) : '—';
+  $('nested').textContent = candidate ? formatter.format(candidate.nested) : '—';
+  $('length').textContent = formatter.format(input.value.length);
+
+  candidatesSelect.replaceChildren();
+  candidatesSelect.disabled = !candidate;
+  if (candidate) {
+    result.candidates.forEach((item, index) => {
+      const kind = Array.isArray(item.value) ? t.array : isContainer(item.value) ? t.object : t.scalar;
+      const step = t[item.path.at(-1)];
+      const option = element('option', '', t.candidate(index + 1, kind, step) + (index === 0 ? ' · ' + t.best : ''));
+      option.value = index;
+      candidatesSelect.append(option);
+    });
+    candidatesSelect.value = selected;
+  } else candidatesSelect.append(element('option', '', t.noCandidates));
+
+  for (const id of ['expand', 'collapse', 'copy', 'download', 'compact', 'search']) $(id).disabled = !candidate;
+  $('compact').setAttribute('aria-pressed', String(compact));
+  describe('compact', compact ? t.tree : t.compact);
+  const status = statusInfo();
+  $('status').textContent = t[status[0]];
+  $('status').dataset.tone = status[2];
+  $('details').textContent = result && !result.workerError && !result.tooLarge ?
+    t.summary(result.candidates.length, result.elapsed) : '';
+  renderPath(candidate);
+  renderTree();
+}
+
+function emptyView(title, hint, glyph) {
+  const empty = element('div', 'empty');
+  empty.append(icon(glyph), element('strong', '', t[title]));
+  if (hint) empty.append(element('span', '', t[hint]));
+  tree.replaceChildren(empty);
+}
+
+function expression(query) {
+  return new RegExp(query.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&'), 'giu');
+}
+
+function filtered(candidate, query) {
+  if (searchCache?.candidate === candidate && searchCache.query === query) return searchCache;
+  const matches = new Set();
+  const ancestors = new Set();
+  const pattern = expression(query);
+  function test(value) {
+    pattern.lastIndex = 0;
+    return pattern.test(value);
+  }
+  function visit(value, key, path) {
+    const nested = isContainer(value);
+    const match = (key !== null && test(key)) || (!nested && test(String(value)));
+    if (match) matches.add(path);
+    let childMatch = false;
+    if (nested) {
+      const array = Array.isArray(value);
+      for (const [name, child] of Object.entries(value)) {
+        if (visit(child, array ? null : name, pointer(path, name))) childMatch = true;
+      }
+    }
+    if (childMatch) ancestors.add(path);
+    return match || childMatch;
+  }
+  visit(candidate.value, null, '');
+  searchCache = { candidate, query, matches, ancestors };
+  return searchCache;
+}
+
+function highlighted(node, value, pattern) {
+  if (value.length > 1400) {
+    if (pattern) pattern.lastIndex = 0;
+    const match = pattern?.exec(value);
+    const offset = Math.max(0, (match?.index ?? 0) - 500);
+    const end = Math.min(value.length, Math.max(offset + 1400, (match?.index ?? 0) + (match?.[0].length ?? 0)));
+    value = (offset ? '…' : '') + value.slice(offset, end) + (end < value.length ? '…' : '');
+  }
+  if (!pattern) { node.textContent = value; return; }
+  pattern.lastIndex = 0;
+  let start = 0;
+  let match;
+  for (let count = 0; count < 40 && (match = pattern.exec(value)); count++) {
+    node.append(document.createTextNode(value.slice(start, match.index)), element('mark', '', match[0]));
+    start = pattern.lastIndex;
+  }
+  node.append(document.createTextNode(value.slice(start)));
+}
+
+function renderTree(focusPath) {
+  const candidate = current();
+  if (!candidate) {
+    const [status, hint] = statusInfo();
+    emptyView(status, hint, status === 'working' ? 'path' : 'code');
+    return;
+  }
+  const query = searchInput.value.trim();
+  const filter = query ? filtered(candidate, query) : null;
+  if (filter && !filter.matches.size) { emptyView('noMatch', 'noMatchHint', 'search'); return; }
+  if (filter) $('details').textContent = t.hits(filter.matches.size) + ' · ' + t.summary(result.candidates.length, result.elapsed);
+  if (compact && !filter) {
+    tree.replaceChildren(element('pre', 'compact', JSON.stringify(candidate.value)));
+    return;
+  }
+
+  const pattern = query ? expression(query) : null;
+  const fragment = document.createDocumentFragment();
+  const scroll = [tree.scrollLeft, tree.scrollTop];
+  let rows = 0;
+  let truncatedDepth;
+  let toFocus;
+
+  function row(depth, toggle, content, comma) {
+    const line = element('div', 'row');
+    line.style.setProperty('--depth', depth);
+    line.append(toggle ?? element('span', 'node-spacer'), content);
+    if (comma) line.append(element('span', 'punctuation', ','));
+    fragment.append(line);
+    rows++;
+    return line;
+  }
+
+  function draw(value, key, path, depth, comma, inherited) {
+    const hit = filter?.matches.has(path);
+    const descendant = filter?.ancestors.has(path);
+    if (filter && !inherited && !hit && !descendant) return;
+    if (rows >= renderLimit) { truncatedDepth ??= depth; return; }
+    const body = element('span', 'content');
+    if (key !== null) {
+      const label = element('span', 'key');
+      highlighted(label, JSON.stringify(key), pattern);
+      body.append(label, element('span', 'punctuation', ': '));
+    }
+
+    const nested = isContainer(value);
+    const array = Array.isArray(value);
+    const [open, close] = array ? ['[', ']'] : ['{', '}'];
+    const entries = nested ? Object.entries(value) : [];
+    const flexible = entries.length > 0;
+    const unfolded = flexible && (overrides.get(path) ??
+      (filter ? !!(descendant || hit || (inherited && depth < 2)) :
+        expandedMode === 'all' || (expandedMode === 'default' && depth < 2)));
+
+    if (!nested) {
+      const type = typeof value;
+      const token = element('span', type === 'string' ? 'string' : type === 'number' ? 'number' : 'literal');
+      highlighted(token, JSON.stringify(value), pattern);
+      body.append(token);
+    } else {
+      const display = !flexible ? open + close : (unfolded ? open : open + '…' + close);
+      body.append(element('span', 'punctuation', display));
+      if (flexible) body.append(element('span', 'size', '  ' + formatter.format(entries.length)));
+    }
+
+    let toggle;
+    if (flexible) {
+      toggle = element('button', 'node-toggle');
+      toggle.type = 'button';
+      toggle.setAttribute('aria-expanded', String(unfolded));
+      toggle.setAttribute('aria-label', (unfolded ? t.collapse : t.expand) + ' · ' + (key ?? (depth ? path.split('/').at(-1) : t.root)));
+      toggle.dataset.path = path;
+      if (focusPath === path) toFocus = toggle;
+    }
+    const line = row(depth, toggle, body, comma && !unfolded);
+    if (Object.prototype.hasOwnProperty.call(candidate.badges, path)) {
+      const steps = candidate.badges[path];
+      const label = steps.find(step => ['base64', 'url', 'unescape', 'query', 'java', 'loose'].includes(step));
+      const badge = element('span', 'badge', label ? t[label] : t.defaultBadge);
+      badge.title = steps.map(step => t[step]).join(' › ');
+      line.append(badge);
+    }
+    if (!unfolded) return;
+    const showAll = inherited || hit;
+    const shown = filter && !showAll ?
+      entries.filter(([name]) => {
+        const childPath = pointer(path, name);
+        return filter.matches.has(childPath) || filter.ancestors.has(childPath);
+      }) : entries;
+    for (let index = 0; index < shown.length; index++) {
+      if (rows >= renderLimit) { truncatedDepth ??= depth + 1; break; }
+      const [name, child] = shown[index];
+      draw(child, array ? null : name, pointer(path, name), depth + 1, index < shown.length - 1, showAll);
+    }
+    if (truncatedDepth === undefined) row(depth, null, element('span', 'punctuation', close), comma);
+  }
+
+  draw(candidate.value, null, '', 0, false, false);
+  if (truncatedDepth !== undefined) {
+    const more = element('button', 'button more', t.more);
+    more.type = 'button';
+    more.dataset.more = 'true';
+    more.style.setProperty('--depth', Math.min(truncatedDepth, 10));
+    fragment.append(more);
+  }
+  tree.replaceChildren(fragment);
+  tree.scrollTo(...scroll);
+  toFocus?.focus({ preventScroll: true });
+}
+
+function showToast(message) {
+  const toast = $('toast');
+  toast.textContent = message;
+  toast.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.hidden = true; }, 2200);
+}
+
+function outputText() {
+  return JSON.stringify(current().value, null, compact ? 0 : 2);
+}
+
+$('sample').addEventListener('click', () => { input.value = sample; updateLines(); startParse(); });
+$('clear').addEventListener('click', () => { input.value = ''; updateLines(); startParse(); input.focus(); });
+$('parse').addEventListener('click', startParse);
+$('timeout').addEventListener('change', startParse);
+input.addEventListener('input', onInput);
+input.addEventListener('scroll', drawGutter);
+window.addEventListener('resize', drawGutter);
+document.addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+    event.preventDefault();
+    startParse();
+  }
+});
+$('language').addEventListener('click', () => {
+  language = language === 'zh' ? 'en' : 'zh';
+  remember('language', language);
+  applySettings();
+});
+$('theme').addEventListener('click', () => {
+  theme = theme === 'dark' ? 'light' : 'dark';
+  remember('theme', theme);
+  applySettings();
+});
+candidatesSelect.addEventListener('change', () => {
+  selected = Number(candidatesSelect.value);
+  resetTree();
+  render();
+  candidatesSelect.focus();
+});
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    overrides.clear();
+    renderLimit = 850;
+    tree.scrollTo(0, 0);
+    render();
+  }, 90);
+});
+tree.addEventListener('click', event => {
+  const button = event.target.closest('button');
+  if (!button) return;
+  if (button.dataset.more) {
+    renderLimit += 850;
+    renderTree();
+    return;
+  }
+  const path = button.dataset.path;
+  if (path !== undefined) {
+    overrides.set(path, button.getAttribute('aria-expanded') !== 'true');
+    renderTree(path);
+  }
+});
+for (const [id, mode] of [['expand', 'all'], ['collapse', 'none']]) {
+  $(id).addEventListener('click', () => {
+    expandedMode = mode;
+    compact = false;
+    overrides.clear();
+    if (mode === 'none' && searchInput.value.trim()) overrides.set('', false);
+    tree.scrollTo(0, 0);
+    render();
+  });
+}
+$('compact').addEventListener('click', () => {
+  compact = !compact;
+  if (compact) searchInput.value = '';
+  tree.scrollTo(0, 0);
+  render();
+});
+$('copy').addEventListener('click', async () => {
+  const value = outputText();
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast(t.copied);
+  } catch {
+    const temporary = element('textarea');
+    temporary.value = value;
+    temporary.style.position = 'fixed';
+    temporary.style.opacity = '0';
+    document.body.append(temporary);
+    temporary.select();
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch {}
+    temporary.remove();
+    $('copy').focus();
+    showToast(copied ? t.copied : t.copyError);
+  }
+});
+$('download').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([outputText()], { type: 'application/json;charset=utf-8' }));
+  const link = element('a');
+  link.href = url;
+  link.download = 'parsed.json';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(t.downloaded);
+});
+
+applySettings();
+input.value = sample;
+updateLines();
+startParse();
+</script>
+</body>
+</html>
